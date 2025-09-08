@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Regatta Webapp (PWA) – MVP</title>
+  <title>Breezy</title>
   <meta name="theme-color" content="#0b3d91" />
   <style>
     :root { --bg:#0b1220; --fg:#e8f0ff; --muted:#9db0d1; --accent:#39d; --ok:#14b8a6; --warn:#f59e0b; --err:#ef4444; }
@@ -39,7 +39,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>⛵ Regatta – Android PWA</h1>
+    <h1>⛵ Breezy</h1>
     <div class="spacer"></div>
     <button id="btnStart">Start sensorer</button>
     <button id="btnTrack" class="secondary">Start sporing</button>
@@ -73,7 +73,8 @@
           <div class="hint">Tips: Trykk i kartet for å sette mål.</div>
         </div>
         <div class="hint" style="margin-top:.35rem;">
-          Heading er magnetisk + deklinasjon (WMM). Android nettbrett, skjerm alltid på → bra stabilitet. 
+          Heading er magnetisk + deklinasjon (WMM). Hvis kompass ikke virker, brukes COG (kurs over grunn) om tilgjengelig.
+          VMG er beregnet langs linjen til målet, basert på SOG
         </div>
       </div>
 
@@ -325,7 +326,7 @@ function triggerDownload(blob, name){
 // ======== PWA (inline manifest + SW via Blob) ========
 (function setupPWA(){
   const manifest = { 
-    name: 'Regatta PWA', short_name: 'Regatta', display: 'standalone', start_url: '.',
+    name: 'Breezy', short_name: 'Breezy', display: 'standalone', start_url: '.',
     background_color: '#0b1220', theme_color: '#0b3d91',
     icons: [
       { src: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><rect width=%22128%22 height=%22128%22 fill=%22%230b3d91%22/><text x=%2264%22 y=%2276%22 font-size=%2272%22 text-anchor=%22middle%22 fill=%22white%22>⛵</text></svg>', sizes:'128x128', type:'image/svg+xml' }
