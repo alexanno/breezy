@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Regatta Webapp (PWA) – MVP</title>
+  <meta name="theme-color" content="#0b3d91" />
+  <style>
+    :root { --bg:#0b1220; --fg:#e8f0ff; --muted:#9db0d1; --accent:#39d; --ok:#14b8a6; --warn:#f59e0b; --err:#ef4444; }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font: 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; }
+    #app { display:grid; grid-template-rows: auto 1fr auto; height:100%; }
+    header { display:flex; gap:.75rem; align-items:center; padding:.75rem 1rem; border-bottom:1px solid #1d2942; position:sticky; top:0; background:#0c1528cc; backdrop-filter: blur(6px); z-index:10; }
+    header h1 { font-size:1.05rem; margin:0; font-weight:600; }
+    header .spacer { flex:1; }
+    header button { background:var(--accent); border:none; color:white; padding:.6rem .9rem; border-radius:.7rem; font-weight:600; }
+    header button.secondary { background:#1f2b46; color:var(--fg); border:1px solid #2b3b62; }
+    main { display:grid; grid-template-columns: 360px 1fr; gap:.75rem; padding:.75rem; }
+    @media (max-width: 1100px) { main { grid-template-columns: 1fr; grid-auto-rows: auto 1fr; } }
+    .card { background:#0f1b33; border:1px solid #1d2e57; border-radius:14px; padding:12px; }
+    .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; }
+    .metric { background:#0f213f; border:1px solid #1d2e57; border-radius:12px; padding:10px; }
+    .metric h3 { margin:.1rem 0 .35rem; font-size:.85rem; color:var(--muted); font-weight:600; }
+    .metric .val { font-size:1.6rem; font-variant-tabular-nums: tabular-nums; }
+    .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+    .row > * { flex: 1 1 auto; }
+    label { font-size:.8rem; color:var(--muted); display:block; margin:.25rem 0; }
+    input[type="text"], input[type="number"] { width:100%; padding:.6rem .7rem; border-radius:.6rem; border:1px solid #2b3b62; background:#0e1b34; color:var(--fg); }
+    .hint { color:var(--muted); font-size:.8rem; }
+    #map { width:100%; height:100%; min-height: 420px; border:1px solid #1d2e57; border-radius:14px; overflow:hidden; }
+    footer { padding:.5rem .75rem; border-top:1px solid #1d2942; color:var(--muted); display:flex; justify-content:space-between; gap:.5rem; }
+    a.btn, button.btn { text-decoration:none; display:inline-flex; align-items:center; gap:.4rem; background:#10305a; color:#e6f2ff; border:1px solid #224773; padding:.55rem .8rem; border-radius:.6rem; font-weight:600; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .err { color: var(--err); }
+  </style>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>⛵ Regatta – Android PWA</h1>
+    <div class="spacer"></div>
+    <button id="btnStart">Start sensorer</button>
+    <button id="btnTrack" class="secondary">Start sporing</button>
+    <button id="btnExport" class="secondary">Eksporter</button>
+  </header>
+
+  <main>
+    <section class="card" id="left">
+      <div class="grid">
+        <div class="metric"><h3>Heading (sann)</h3><div class="val" id="headingTrue">—°</div></div>
+        <div class="metric"><h3>Δ heading</h3><div class="val" id="deltaHeading">—°</div></div>
+        <div class="metric"><h3>SOG</h3><div class="val" id="sog">— kn</div></div>
+        <div class="metric"><h3>COG</h3><div class="val" id="cog">—°</div></div>
+        <div class="metric"><h3>Bearing → mål</h3><div class="val" id="bearing">—°</div></div>
+        <div class="metric"><h3>VMG → mål</h3><div class="val" id="vmg">— kn</div></div>
+      </div>
+
+      <div class="card" style="margin-top:.75rem;">
+        <div class="row">
+          <div>
+            <label>Mål (lat, lon)</label>
+            <input id="wpLat" type="number" step="0.000001" placeholder="Lat"> 
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <input id="wpLon" type="number" step="0.000001" placeholder="Lon">
+          </div>
+        </div>
+        <div class="row" style="margin-top:.4rem;">
+          <button class="btn" id="btnSetWp">Sett mål</button>
+          <div class="hint">Tips: Trykk i kartet for å sette mål.</div>
+        </div>
+        <div class="hint" style="margin-top:.35rem;">
+          Heading er magnetisk + deklinasjon (WMM). Android nettbrett, skjerm alltid på → bra stabilitet. 
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:.75rem;">
+        <div class="row"><div id="status" class="hint">Status: klar</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div id="map"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      <span>Tilganger: </span>
+      <span id="permLocation" class="warn">lokasjon?</span> ·
+      <span id="permOri" class="warn">kompass?</span> ·
+      <span id="permWake" class="warn">wake lock?</span>
+    </div>
+    <div class="hint">Trykk på kartet for å sette mål. Spor vises som blå linje. Lagre GPX/GeoJSON via «Eksporter».</div>
+  </footer>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- geomag WMM (lettvekts) – fallback til 0 om last feiler -->
+<script>
+// Minimal WMM-tilnærming: Vi prøver å hente liten lib fra CDN; hvis ikke, returnerer 0.
+// Du kan bytte ut denne med en mer nøyaktig WMM-implementasjon om ønskelig.
+let wmm;
+(async () => {
+  try {
+    // Enkel ES-module via import() av en liten UMD/ESM – kan byttes til din favoritt.
+    // Hvis last feiler, ignoreres.
+    wmm = await import('https://cdn.jsdelivr.net/npm/geomagnetism@1.1.1/dist/geomagnetism.esm.js');
+  } catch(e) { /* ok */ }
+})();
+function getDeclination(lat, lon, date=new Date()){
+  try {
+    if (wmm && typeof wmm.default === 'function') {
+      const model = wmm.default();
+      const res = model.calculate(lat, lon, 0, date);
+      return res.declination || 0;
+    }
+  } catch(e){ /* ignore */ }
+  return 0; // fallback
+}
+</script>
+
+<script type="module">
+// ======== State ========
+const el = id => document.getElementById(id);
+const fmt = (n, d=0) => (Number.isFinite(n) ? n.toFixed(d) : '—');
+const toRad = d => d*Math.PI/180; const toDeg = r => r*180/Math.PI;
+const smallestAngleDiff = (a,b)=>{ let d=(a-b+540)%360-180; return d; };
+const haversine = (la1,lo1,la2,lo2)=>{ const R=6371000, φ1=toRad(la1), φ2=toRad(la2), dφ=toRad(la2-la1), dλ=toRad(lo2-lo1); const a=Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2; return 2*R*Math.asin(Math.sqrt(a)); };
+const bearing = (la1,lo1,la2,lo2)=>{ const φ1=toRad(la1), φ2=toRad(la2), Δλ=toRad(lo2-lo1); const y=Math.sin(Δλ)*Math.cos(φ2); const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ); return (toDeg(Math.atan2(y,x))+360)%360; };
+
+let started = false;
+let tracking = false;
+let trackPts = []; // {lat,lon,t}
+let lastFix = null; // {lat,lon,t}
+let sog = 0; // m/s (EMA)
+let cog = null; // deg
+let headingMag = null; // deg (magnetisk)
+let headingTrue = null; // deg (sann)
+let lastHeading = null; // for delta
+let decl = 0; // deg (oppdatert per posisjon)
+let wakeLock = null;
+let target = null; // {lat, lon}
+
+// ======== Map (Leaflet) ========
+const map = L.map('map', { zoomControl: true });
+const tile = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OSM' });
+const trackLine = L.polyline([], { weight: 4, opacity: .9 }).addTo(map);
+let meMarker = L.circleMarker([0,0], {radius: 6, opacity: 1, fillOpacity: 0.9}).addTo(map);
+let wpMarker = null;
+
+tile.addTo(map);
+map.setView([58.1467, 7.9956], 12); // Kristiansand-ish default
+
+map.on('click', (e)=>{
+  setWaypoint(e.latlng.lat, e.latlng.lng);
+});
+
+function setWaypoint(lat, lon){
+  target = {lat, lon};
+  if (!wpMarker) wpMarker = L.marker([lat,lon]).addTo(map); else wpMarker.setLatLng([lat,lon]);
+  el('wpLat').value = lat.toFixed(6);
+  el('wpLon').value = lon.toFixed(6);
+  render();
+}
+
+// ======== Sensors & Geolocation ========
+function ema(prev, curr, a){ if (!Number.isFinite(prev)) return curr; return prev + a*(curr-prev); }
+
+function updateFromPosition(p){
+  const { latitude: lat, longitude: lon, speed, heading } = p.coords;
+  const t = p.timestamp;
+
+  // deklinasjon (oppdater av og til – her hver fix)
+  decl = getDeclination(lat, lon, new Date(t));
+
+  if (lastFix){
+    const dt = Math.max(0.5, (t - lastFix.t)/1000);
+    const d = haversine(lastFix.lat, lastFix.lon, lat, lon);
+    const sogRaw = d/dt;
+    sog = ema(sog || sogRaw, sogRaw, 0.2);
+    cog = bearing(lastFix.lat, lastFix.lon, lat, lon);
+  } else {
+    sog = Number.isFinite(speed) ? speed : 0;
+    cog = Number.isFinite(heading) ? heading : null;
+  }
+
+  lastFix = { lat, lon, t };
+  meMarker.setLatLng([lat, lon]);
+  if (tracking){
+    trackPts.push({lat, lon, t});
+    trackLine.addLatLng([lat,lon]);
+  }
+  if (trackPts.length === 1) map.setView([lat,lon], 15);
+  computeHeadingTrue();
+  render();
+}
+
+function computeHeadingTrue(){
+  if (headingMag==null){ headingTrue = null; return; }
+  // wrap + deklinasjon
+  const ht = (headingMag + decl + 360) % 360;
+  // smooth over vinkel
+  if (lastHeading==null) { lastHeading = ht; headingTrue = ht; return; }
+  const diff = smallestAngleDiff(ht, lastHeading);
+  headingTrue = (lastHeading + 0.2*diff + 360) % 360;
+}
+
+function onOrientation(e){
+  // Mange Android-enheter: alpha=0 ved øst, øker mot sør; dette gir heading ~ (360 - alpha)
+  let a = e.alpha;
+  if (a==null) return;
+  headingMag = (360 - a) % 360;
+  computeHeadingTrue();
+  render();
+}
+
+let watchId = null;
+async function startSensors(){
+  if (started) return;
+  started = true;
+
+  // Wake Lock (skjerm alltid på)
+  try {
+    if ('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+      el('permWake').textContent = 'wake lock ✓'; el('permWake').className = 'ok';
+      document.addEventListener('visibilitychange', async ()=>{
+        if (document.visibilityState==='visible' && !wakeLock) {
+          try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+        }
+      });
+    }
+  } catch(e){ el('permWake').textContent = 'wake lock ⚠'; }
+
+  // Orientation permission (iOS-lignende API; på Android/Chrome trengs sjelden, men kjør anyway)
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      await DeviceOrientationEvent.requestPermission().catch(()=>{});
+    }
+    window.addEventListener('deviceorientationabsolute', onOrientation, true);
+    window.addEventListener('deviceorientation', onOrientation, true);
+    el('permOri').textContent = 'kompass ✓'; el('permOri').className = 'ok';
+  } catch(e){ el('permOri').textContent = 'kompass ⚠'; }
+
+  // Geolocation
+  try {
+    const perm = await navigator.permissions.query({ name: 'geolocation' });
+    if (perm.state==='granted' || perm.state==='prompt'){
+      watchId = navigator.geolocation.watchPosition(updateFromPosition, (err)=>{
+        el('status').textContent = 'Geolocation-feil: ' + err.message;
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+      el('permLocation').textContent = 'lokasjon ✓'; el('permLocation').className = 'ok';
+    } else {
+      el('permLocation').textContent = 'lokasjon ✗'; el('permLocation').className = 'err';
+    }
+  } catch(e){ el('permLocation').textContent = 'lokasjon ⚠'; }
+
+  el('status').textContent = 'Sensorer startet.';
+}
+
+// ======== VMG & rendering ========
+function vmgKnots(){
+  if (!lastFix || !target) return NaN;
+  const brg = bearing(lastFix.lat, lastFix.lon, target.lat, target.lon);
+  const ref = (Number.isFinite(cog) ? cog : headingTrue);
+  if (!Number.isFinite(ref)) return NaN;
+  const delta = smallestAngleDiff(ref, brg);
+  const vmg = sog * Math.cos(toRad(delta));
+  return vmg * 1.94384;
+}
+
+function render(){
+  const dH = (headingTrue!=null && lastHeading!=null) ? smallestAngleDiff(headingTrue, lastHeading) : NaN;
+  if (headingTrue!=null) lastHeading = headingTrue; // oppdater referanse
+
+  el('headingTrue').textContent = Number.isFinite(headingTrue) ? `${fmt(headingTrue,0)}°` : '—°';
+  el('deltaHeading').textContent = Number.isFinite(dH) ? `${fmt(dH,0)}°` : '—°';
+  el('sog').textContent = `${fmt(sog*1.94384,2)} kn`;
+  el('cog').textContent = Number.isFinite(cog) ? `${fmt(cog,0)}°` : '—°';
+
+  if (lastFix && target){
+    const brg = bearing(lastFix.lat, lastFix.lon, target.lat, target.lon);
+    el('bearing').textContent = `${fmt(brg,0)}°`;
+  } else {
+    el('bearing').textContent = '—°';
+  }
+
+  const vmg = vmgKnots();
+  el('vmg').textContent = Number.isFinite(vmg) ? `${fmt(vmg,2)} kn` : '— kn';
+}
+
+// ======== Export ========
+function exportGeoJSON(){
+  if (!trackPts.length) return;
+  const coords = trackPts.map(p=>[p.lon,p.lat]);
+  const fc = { type:'FeatureCollection', features:[ { type:'Feature', properties:{name:'Track', points:trackPts.length}, geometry:{ type:'LineString', coordinates: coords } } ] };
+  if (target) fc.features.push({ type:'Feature', properties:{name:'Target'}, geometry:{ type:'Point', coordinates:[target.lon, target.lat] }});
+  const blob = new Blob([JSON.stringify(fc)], {type:'application/geo+json'});
+  triggerDownload(blob, `regatta_track_${Date.now()}.geojson`);
+}
+
+function exportGPX(){
+  if (!trackPts.length) return;
+  const esc = s => String(s).replace(/[<&>]/g, ch=>({"<":"&lt;","&":"&amp;",">":"&gt;"}[ch]));
+  let s = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="RegattaPWA" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>Regatta Track</name><trkseg>`;
+  for (const p of trackPts){
+    s += `\n<trkpt lat="${p.lat}" lon="${p.lon}"><time>${new Date(p.t).toISOString()}</time></trkpt>`;
+  }
+  s += `\n</trkseg></trk></gpx>`;
+  const blob = new Blob([s], {type:'application/gpx+xml'});
+  triggerDownload(blob, `regatta_track_${Date.now()}.gpx`);
+}
+
+function triggerDownload(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+
+// ======== PWA (inline manifest + SW via Blob) ========
+(function setupPWA(){
+  const manifest = { 
+    name: 'Regatta PWA', short_name: 'Regatta', display: 'standalone', start_url: '.',
+    background_color: '#0b1220', theme_color: '#0b3d91',
+    icons: [
+      { src: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><rect width=%22128%22 height=%22128%22 fill=%22%230b3d91%22/><text x=%2264%22 y=%2276%22 font-size=%2272%22 text-anchor=%22middle%22 fill=%22white%22>⛵</text></svg>', sizes:'128x128', type:'image/svg+xml' }
+    ]
+  };
+  const mblob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
+  const murl = URL.createObjectURL(mblob);
+  const link = document.createElement('link'); link.rel='manifest'; link.href=murl; document.head.appendChild(link);
+
+  const swCode = `self.addEventListener('install',e=>{e.waitUntil(caches.open('regatta-pwa-v1').then(c=>c.addAll(['./'])))});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})`;
+  const swBlob = new Blob([swCode], {type:'text/javascript'});
+  const swUrl = URL.createObjectURL(swBlob);
+  if ('serviceWorker' in navigator){ navigator.serviceWorker.register(swUrl); }
+})();
+
+// ======== UI bindings ========
+el('btnStart').addEventListener('click', startSensors);
+
+el('btnTrack').addEventListener('click', ()=>{
+  tracking = !tracking;
+  el('btnTrack').textContent = tracking ? 'Stop sporing' : 'Start sporing';
+  el('status').textContent = tracking ? 'Sporing: PÅ' : 'Sporing: AV';
+  if (!tracking) return;
+  // start fresh segment if first point exists
+  if (lastFix){ trackPts.push({ ...lastFix }); trackLine.addLatLng([lastFix.lat, lastFix.lon]); }
+});
+
+el('btnExport').addEventListener('click', ()=>{
+  exportGeoJSON();
+  exportGPX();
+  el('status').textContent = 'Eksportert GeoJSON og GPX til nedlastinger.';
+});
+
+el('btnSetWp').addEventListener('click', ()=>{
+  const la = parseFloat(el('wpLat').value), lo = parseFloat(el('wpLon').value);
+  if (Number.isFinite(la) && Number.isFinite(lo)) setWaypoint(la, lo);
+});
+
+// Autostart geolocation watch for a quick center if permission granted already
+if (navigator.permissions && navigator.permissions.query){
+  navigator.permissions.query({name:'geolocation'}).then(p=>{
+    if (p.state==='granted') startSensors();
+  });
+}
+
+</script>
+</body>
+</html>
