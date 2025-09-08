@@ -386,10 +386,18 @@ function triggerDownload(blob, name){
 // ======== PWA (inline manifest + SW via Blob) ========
 (function setupPWA(){
   const manifest = { 
-    name: 'Breezy', short_name: 'Breezy', display: 'standalone', start_url: '.',
-    background_color: '#0b1220', theme_color: '#0b3d91',
+    name: 'Breezy',
+    short_name: 'Breezy',
+    display: 'fullscreen',
+    start_url: '.',
+    background_color: '#0b1220',
+    theme_color: '#0b3d91',
+    description: 'Minimalistisk PWA for seiling, sporing og navigasjon',
+    orientation: 'portrait',
+    scope: '.',
     icons: [
       { src: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><rect width=%22128%22 height=%22128%22 fill=%22%230b3d91%22/><text x=%2264%22 y=%2276%22 font-size=%2272%22 text-anchor=%22middle%22 fill=%22white%22>⛵</text></svg>', sizes:'128x128', type:'image/svg+xml' }
+      // Add PNG icons for better OS integration if desired
     ]
   };
   const mblob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
@@ -403,7 +411,14 @@ function triggerDownload(blob, name){
 })();
 
 // ======== UI bindings ========
-el('btnStart').addEventListener('click', startSensors);
+
+el('btnStart').addEventListener('click', () => {
+  startSensors();
+  // Request fullscreen after user gesture
+  if (document.fullscreenEnabled) {
+    document.documentElement.requestFullscreen().catch(()=>{});
+  }
+});
 
 el('btnTrack').addEventListener('click', ()=>{
   tracking = !tracking;
