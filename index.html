@@ -39,12 +39,13 @@
 <body>
 <div id="app">
   <header>
-    <h1>⛵ Breezy</h1>
-    <div class="spacer"></div>
-    <button id="btnStart">Start sensorer</button>
-    <button id="btnTrack" class="secondary">Start sporing</button>
-    <button id="btnExport" class="secondary">Eksporter</button>
-  </header>
+      <h1>⛵ Breezy</h1>
+      <div class="spacer"></div>
+      <button id="btnStart">Start sensorer</button>
+      <button id="btnTrack" class="secondary">Start sporing</button>
+      <button id="btnExport" class="secondary">Eksporter</button>
+      <button id="btnLog" class="secondary">Last ned logg</button>
+    </header>
 
   <main>
     <section class="card" id="left">
@@ -138,7 +139,7 @@ let started = false;
 let tracking = false;
 let trackPts = []; // {lat,lon,t}
 let lastFix = null; // {lat,lon,t}
-let sog = 0; // m/s (EMA)
+let sog = 0; // m/s (median)
 let cog = null; // deg
 let headingMag = null; // deg (magnetisk)
 let headingTrue = null; // deg (sann)
@@ -146,6 +147,32 @@ let lastHeading = null; // for delta
 let decl = 0; // deg (oppdatert per posisjon)
 let wakeLock = null;
 let target = null; // {lat, lon}
+
+// Sliding window buffers
+const SOG_WINDOW = 5;
+const HEADING_WINDOW = 5;
+let sogBuf = [];
+let headingBuf = [];
+
+// Minimum change thresholds
+const MIN_SOG_CHANGE = 0.05; // m/s
+const MIN_HEADING_CHANGE = 1; // deg
+
+// Update throttling
+const UPDATE_INTERVAL = 1000; // ms
+let lastUpdateTime = 0;
+
+// Raw log
+let rawLog = [];
+function logRaw(type, data) {
+  const t = Date.now();
+  rawLog.push({ t, type, ...data });
+}
+function exportRawLog() {
+  const lines = rawLog.map(e => JSON.stringify(e));
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  triggerDownload(blob, `breezy_rawlog_${Date.now()}.log`);
+}
 
 // ======== Map (Leaflet) ========
 const map = L.map('map', { zoomControl: true });
@@ -176,19 +203,40 @@ function updateFromPosition(p){
   const { latitude: lat, longitude: lon, speed, heading } = p.coords;
   const t = p.timestamp;
 
+  // Throttle updates
+  if (t - lastUpdateTime < UPDATE_INTERVAL) return;
+  lastUpdateTime = t;
+
   // deklinasjon (oppdater av og til – her hver fix)
   decl = getDeclination(lat, lon, new Date(t));
 
+  // Raw log before correction
+  logRaw('gps_raw', {lat, lon, speed, heading, t});
+
+  let sogRaw = 0, cogRaw = null;
   if (lastFix){
     const dt = Math.max(0.5, (t - lastFix.t)/1000);
     const d = haversine(lastFix.lat, lastFix.lon, lat, lon);
-    const sogRaw = d/dt;
-    sog = ema(sog || sogRaw, sogRaw, 0.2);
-    cog = bearing(lastFix.lat, lastFix.lon, lat, lon);
+    sogRaw = d/dt;
+    cogRaw = bearing(lastFix.lat, lastFix.lon, lat, lon);
   } else {
-    sog = Number.isFinite(speed) ? speed : 0;
-    cog = Number.isFinite(heading) ? heading : null;
+    sogRaw = Number.isFinite(speed) ? speed : 0;
+    cogRaw = Number.isFinite(heading) ? heading : null;
   }
+
+  // Sliding window median for SOG
+  if (!Number.isFinite(sogRaw)) sogRaw = 0;
+  sogBuf.push(sogRaw);
+  if (sogBuf.length > SOG_WINDOW) sogBuf.shift();
+  const sortedSog = [...sogBuf].sort((a,b)=>a-b);
+  const medianSog = sortedSog[Math.floor(sortedSog.length/2)];
+  // Only update if change exceeds threshold
+  if (!Number.isFinite(sog) || Math.abs(medianSog - sog) > MIN_SOG_CHANGE) {
+    sog = medianSog;
+  }
+
+  // Sliding window median for COG
+  cog = cogRaw;
 
   lastFix = { lat, lon, t };
   meMarker.setLatLng([lat, lon]);
@@ -199,16 +247,24 @@ function updateFromPosition(p){
   if (trackPts.length === 1) map.setView([lat,lon], 15);
   computeHeadingTrue();
   render();
+
+  // Raw log after correction
+  logRaw('gps_corrected', {lat, lon, sog, cog, t});
 }
 
 function computeHeadingTrue(){
   if (headingMag==null){ headingTrue = null; return; }
   // wrap + deklinasjon
   const ht = (headingMag + decl + 360) % 360;
-  // smooth over vinkel
-  if (lastHeading==null) { lastHeading = ht; headingTrue = ht; return; }
-  const diff = smallestAngleDiff(ht, lastHeading);
-  headingTrue = (lastHeading + 0.2*diff + 360) % 360;
+  // Sliding window median for heading
+  headingBuf.push(ht);
+  if (headingBuf.length > HEADING_WINDOW) headingBuf.shift();
+  const sortedHeading = [...headingBuf].sort((a,b)=>a-b);
+  const medianHeading = sortedHeading[Math.floor(sortedHeading.length/2)];
+  // Only update if change exceeds threshold
+  if (!Number.isFinite(headingTrue) || Math.abs(smallestAngleDiff(medianHeading, headingTrue)) > MIN_HEADING_CHANGE) {
+    headingTrue = medianHeading;
+  }
 }
 
 function onOrientation(e){
@@ -216,8 +272,12 @@ function onOrientation(e){
   let a = e.alpha;
   if (a==null) return;
   headingMag = (360 - a) % 360;
+  // Raw log before correction
+  logRaw('compass_raw', {headingMag, t: Date.now()});
   computeHeadingTrue();
   render();
+  // Raw log after correction
+  logRaw('compass_corrected', {headingTrue, t: Date.now()});
 }
 
 let watchId = null;
@@ -354,10 +414,16 @@ el('btnTrack').addEventListener('click', ()=>{
   if (lastFix){ trackPts.push({ ...lastFix }); trackLine.addLatLng([lastFix.lat, lastFix.lon]); }
 });
 
+
 el('btnExport').addEventListener('click', ()=>{
   exportGeoJSON();
   exportGPX();
   el('status').textContent = 'Eksportert GeoJSON og GPX til nedlastinger.';
+});
+
+el('btnLog').addEventListener('click', ()=>{
+  exportRawLog();
+  el('status').textContent = 'Logg eksportert.';
 });
 
 el('btnSetWp').addEventListener('click', ()=>{
