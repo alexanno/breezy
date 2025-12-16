@@ -20,9 +20,9 @@
   "license": "MIT",
   "devDependencies": {
     "@playwright/test": "^1.40.0",
-    "@vitest/coverage-v8": "^1.0.0",
-    "happy-dom": "^12.10.0",
+    "@vitest/coverage-v8": "^4.0.0",
+    "happy-dom": "^20.0.0",
     "http-server": "^14.1.1",
-    "vitest": "^1.0.0"
+    "vitest": "^4.0.0"
   }
 }
