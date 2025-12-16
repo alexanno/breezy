@@ -44,11 +44,35 @@ Breezy is a minimalist, offline-first Progressive Web App (PWA) for real-time na
 - **Map:** [Leaflet.js](https://leafletjs.com/) with OpenStreetMap tiles
 - **PWA:** Inline manifest and service worker for offline use
 - **Sensors:** Uses browser APIs for geolocation and device orientation
+- **Testing:** Automated tests using Vitest (unit) and Playwright (E2E)
 
 ## Installation
 
 - Open in your browser and "Add to Home Screen" for a native-like experience.
 - No server or backend required—just static files.
+
+## Testing
+
+Breezy includes comprehensive automated testing to ensure reliability without requiring device deployment:
+
+```bash
+# Install dependencies
+npm install
+
+# Run all tests
+npm run test:all
+
+# Run unit tests only
+npm run test:unit
+
+# Run E2E tests only
+npm run test:e2e
+
+# Run with coverage
+npm run test:coverage
+```
+
+See [TESTING.md](TESTING.md) for detailed testing documentation.
 
 ## License
 
