@@ -138,6 +138,7 @@ describe('Data Processing Functions', () => {
     });
 
     it('should calculate median of even-length array', () => {
+      // Note: Returns middle-right value, not average (consistent with sensor smoothing logic)
       expect(median([1, 2, 3, 4])).toBe(3); // Middle-right value
       expect(median([4, 1, 2, 3])).toBe(3);
     });

@@ -70,6 +70,8 @@ export function calculateVMG(sog, currentHeading, targetBearing) {
 
 /**
  * Calculate median of an array of numbers
+ * Note: For even-length arrays, returns the middle-right value (not average of two middle values)
+ * This is consistent with the simplified median used in sensor smoothing.
  * @param {number[]} arr - Array of numbers
  * @returns {number} Median value
  */
