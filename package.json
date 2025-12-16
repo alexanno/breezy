@@ -1,0 +1,28 @@
+{
+  "name": "breezy",
+  "version": "1.0.0",
+  "description": "Minimalist PWA for real-time navigation, tracking, and waypoint management",
+  "type": "module",
+  "scripts": {
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test:all": "npm run test:unit && npm run test:e2e",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "pwa",
+    "sailing",
+    "navigation",
+    "gps"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "happy-dom": "^12.10.0",
+    "http-server": "^14.1.1",
+    "vitest": "^1.0.0"
+  }
+}
