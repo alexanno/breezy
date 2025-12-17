@@ -150,17 +150,18 @@ let target = null; // {lat, lon}
 
 // Sliding window buffers
 const SOG_WINDOW = 5;
-const HEADING_WINDOW = 5;
+const HEADING_WINDOW = 10;
 let sogBuf = [];
 let headingBuf = [];
 
 // Minimum change thresholds
 const MIN_SOG_CHANGE = 0.05; // m/s
-const MIN_HEADING_CHANGE = 1; // deg
+const MIN_HEADING_CHANGE = 2; // deg
 
 // Update throttling
 const UPDATE_INTERVAL = 1000; // ms
 let lastUpdateTime = 0;
+let lastOrientationUpdateTime = 0;
 
 // Raw log
 let rawLog = [];
@@ -271,13 +272,19 @@ function onOrientation(e){
   // Mange Android-enheter: alpha=0 ved øst, øker mot sør; dette gir heading ~ (360 - alpha)
   let a = e.alpha;
   if (a==null) return;
+  
+  const t = Date.now();
+  // Throttle orientation updates to reduce jitter
+  if (t - lastOrientationUpdateTime < UPDATE_INTERVAL) return;
+  lastOrientationUpdateTime = t;
+  
   headingMag = (360 - a) % 360;
   // Raw log before correction
-  logRaw('compass_raw', {headingMag, t: Date.now()});
+  logRaw('compass_raw', {headingMag, t});
   computeHeadingTrue();
   render();
   // Raw log after correction
-  logRaw('compass_corrected', {headingTrue, t: Date.now()});
+  logRaw('compass_corrected', {headingTrue, t});
 }
 
 let watchId = null;
