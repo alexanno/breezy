@@ -52,7 +52,7 @@
       <div class="spacer"></div>
       <button id="btnInstall" class="secondary hidden">Installer app</button>
       <!--<button id="btnStart">Start sensorer</button>-->
-      <!--<button id="btnTrack" class="secondary">Start sporing</button>-->
+      <button id="btnTrack" class="secondary">Start sporing</button>
       <button id="btnExport" class="secondary">Eksporter</button>
       <!--<button id="btnLog" class="secondary">Last ned logg</button>-->
     </header>
@@ -463,6 +463,7 @@ el('btnStart').addEventListener('click', () => {
     document.documentElement.requestFullscreen().catch(()=>{});
   }
 });
+*/
 
 el('btnTrack').addEventListener('click', ()=>{
   tracking = !tracking;
@@ -472,7 +473,6 @@ el('btnTrack').addEventListener('click', ()=>{
   // start fresh segment if first point exists
   if (lastFix){ trackPts.push({ ...lastFix }); trackLine.addLatLng([lastFix.lat, lastFix.lon]); }
 });
-*/
 
 el('btnExport').addEventListener('click', ()=>{
   exportGeoJSON();
