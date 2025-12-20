@@ -17,6 +17,8 @@ Breezy is a minimalist, offline-first Progressive Web App (PWA) for real-time na
 	- Wake lock to keep the screen on during use
 - **Offline Support:**
 	- Fully functional as a PWA (installable, works offline)
+- **Install-Ready:**
+	- Proper manifest + icons for Android "Add to Home Screen" and standalone launch
 - **Privacy-Friendly:**
 	- No accounts, no tracking, all data stays on your device
 
@@ -24,6 +26,8 @@ Breezy is a minimalist, offline-first Progressive Web App (PWA) for real-time na
 
 1. **Open in Browser:**
 	 - Open `index.html` in a modern browser (best on Android/Chrome).
+2. **Install (optional):**
+	 - Tap "Installer app" in the header or use "Add to Home Screen" for a fullscreen standalone experience.
 2. **Start Sensors:**
 	 - Tap "Start sensorer" to enable GPS and compass.
 3. **Set Waypoint:**

@@ -1,0 +1,23 @@
+{
+  "id": "app.breezy",
+  "name": "Breezy",
+  "short_name": "Breezy",
+  "description": "Minimalist PWA for sailing, tracking, and navigation with offline-first support.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b1220",
+  "theme_color": "#0b3d91",
+  "icons": [
+    { "src": "icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Start sensorer", "short_name": "Sensorer", "description": "Start GPS og kompass", "url": "./#start" },
+    { "name": "Start sporing", "short_name": "Spor", "description": "Begynn sporing av rute", "url": "./#track" }
+  ],
+  "categories": ["navigation", "sports", "utilities"],
+  "prefer_related_applications": false
+}

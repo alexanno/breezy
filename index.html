@@ -4,7 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Breezy</title>
+  <meta name="description" content="Minimalistisk PWA for seiling, sporing og navigasjon (offline-first)." />
+  <meta name="application-name" content="Breezy" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0b3d91" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png" />
   <style>
     :root { --bg:#0b1220; --fg:#e8f0ff; --muted:#9db0d1; --accent:#39d; --ok:#14b8a6; --warn:#f59e0b; --err:#ef4444; }
     html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font: 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; }
@@ -32,6 +40,7 @@
     .ok { color: var(--ok); }
     .warn { color: var(--warn); }
     .err { color: var(--err); }
+    .hidden { display: none !important; }
   </style>
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -41,6 +50,7 @@
   <header>
       <h1>⛵ Breezy</h1>
       <div class="spacer"></div>
+      <button id="btnInstall" class="secondary hidden">Installer app</button>
       <button id="btnStart">Start sensorer</button>
       <button id="btnTrack" class="secondary">Start sporing</button>
       <button id="btnExport" class="secondary">Eksporter</button>
@@ -390,32 +400,59 @@ function triggerDownload(blob, name){
   setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
 }
 
-// ======== PWA (inline manifest + SW via Blob) ========
-(function setupPWA(){
-  const manifest = { 
-    name: 'Breezy',
-    short_name: 'Breezy',
-    display: 'fullscreen',
-    start_url: '.',
-    background_color: '#0b1220',
-    theme_color: '#0b3d91',
-    description: 'Minimalistisk PWA for seiling, sporing og navigasjon',
-    orientation: 'portrait',
-    scope: '.',
-    icons: [
-      { src: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><rect width=%22128%22 height=%22128%22 fill=%22%230b3d91%22/><text x=%2264%22 y=%2276%22 font-size=%2272%22 text-anchor=%22middle%22 fill=%22white%22>⛵</text></svg>', sizes:'128x128', type:'image/svg+xml' }
-      // Add PNG icons for better OS integration if desired
-    ]
-  };
-  const mblob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
-  const murl = URL.createObjectURL(mblob);
-  const link = document.createElement('link'); link.rel='manifest'; link.href=murl; document.head.appendChild(link);
+// ======== PWA install + SW ========
+const installBtn = el('btnInstall');
+let deferredPrompt = null;
 
-  const swCode = `self.addEventListener('install',e=>{e.waitUntil(caches.open('regatta-pwa-v1').then(c=>c.addAll(['./'])))});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})`;
-  const swBlob = new Blob([swCode], {type:'text/javascript'});
-  const swUrl = URL.createObjectURL(swBlob);
-  if ('serviceWorker' in navigator){ navigator.serviceWorker.register(swUrl); }
-})();
+async function registerServiceWorker(){
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('service-worker.js');
+  } catch(e){ console.warn('SW registration failed', e); }
+}
+
+function setupInstallPrompt(){
+  if (!installBtn) return;
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.classList.remove('hidden');
+  });
+
+  window.addEventListener('appinstalled', ()=>{
+    installBtn.classList.add('hidden');
+    deferredPrompt = null;
+  });
+
+  installBtn.addEventListener('click', async ()=>{
+    if (!deferredPrompt) return;
+    installBtn.disabled = true;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installBtn.disabled = false;
+    installBtn.classList.add('hidden');
+    el('status').textContent = outcome === 'accepted' ? 'PWA installert.' : 'Installering avbrutt.';
+  });
+}
+
+function applyShortcutFromHash(){
+  if (location.hash==="#start") startSensors();
+  if (location.hash==="#track") {
+    startSensors();
+    if (!tracking) {
+      tracking = true;
+      el('btnTrack').textContent = 'Stop sporing';
+      el('status').textContent = 'Sporing: PÅ';
+      if (lastFix){ trackPts.push({ ...lastFix }); trackLine.addLatLng([lastFix.lat, lastFix.lon]); }
+    }
+  }
+}
+
+registerServiceWorker();
+setupInstallPrompt();
+applyShortcutFromHash();
+window.addEventListener('hashchange', applyShortcutFromHash);
 
 // ======== UI bindings ========
 
