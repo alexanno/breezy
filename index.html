@@ -187,7 +187,10 @@ function exportRawLog() {
 
 // ======== Map (Leaflet) ========
 const map = L.map('map', { zoomControl: true });
-const tile = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OSM' });
+//const tileurl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+//const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png'
+const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png'
+const tile = L.tileLayer(tileurl, { maxZoom: 19, attribution: '&copy; Kartverket' });
 const trackLine = L.polyline([], { weight: 4, opacity: .9 }).addTo(map);
 let meMarker = L.circleMarker([0,0], {radius: 6, opacity: 1, fillOpacity: 0.9}).addTo(map);
 let wpMarker = null;
