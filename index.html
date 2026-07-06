@@ -469,6 +469,7 @@ el('btnStart').addEventListener('click', () => {
 */
 
 el('btnTrack').addEventListener('click', ()=>{
+  if (!started) startSensors();
   tracking = !tracking;
   el('btnTrack').textContent = tracking ? 'Stop sporing' : 'Start sporing';
   el('status').textContent = tracking ? 'Sporing: PÅ' : 'Sporing: AV';
