@@ -161,12 +161,21 @@ let target = null; // {lat, lon}
 // Sliding window buffers
 const SOG_WINDOW = 5;
 const HEADING_WINDOW = 10;
+const COG_WINDOW = 5;
 let sogBuf = [];
-let headingBuf = [];
+let headingBuf = []; // {sin, cos} unit vectors, for circular mean
+let cogBuf = [];      // {sin, cos} unit vectors, for circular mean
 
 // Minimum change thresholds
 const MIN_SOG_CHANGE = 0.05; // m/s
 const MIN_HEADING_CHANGE = 2; // deg
+const MIN_COG_CHANGE = 3; // deg
+
+// Below this speed, GPS bearing-between-fixes is dominated by position jitter, not real motion
+const MIN_COG_SPEED = 0.3; // m/s (~0.6 kn)
+
+// Fixes worse than this accuracy radius are dropped rather than fed into the filters
+const MAX_ACCURACY_M = 30;
 
 // Update throttling
 const UPDATE_INTERVAL = 1000; // ms
@@ -214,8 +223,14 @@ function setWaypoint(lat, lon){
 function ema(prev, curr, a){ if (!Number.isFinite(prev)) return curr; return prev + a*(curr-prev); }
 
 function updateFromPosition(p){
-  const { latitude: lat, longitude: lon, speed, heading } = p.coords;
+  const { latitude: lat, longitude: lon, speed, heading, accuracy } = p.coords;
   const t = p.timestamp;
+
+  // Drop low-quality fixes outright rather than let them pollute the filters
+  if (Number.isFinite(accuracy) && accuracy > MAX_ACCURACY_M) {
+    el('status').textContent = `GPS-nøyaktighet lav (${Math.round(accuracy)} m) – fiks hoppet over`;
+    return;
+  }
 
   // Throttle updates
   if (t - lastUpdateTime < UPDATE_INTERVAL) return;
@@ -225,16 +240,20 @@ function updateFromPosition(p){
   decl = getDeclination(lat, lon, new Date(t));
 
   // Raw log before correction
-  logRaw('gps_raw', {lat, lon, speed, heading, t});
+  logRaw('gps_raw', {lat, lon, speed, heading, accuracy, t});
 
   let sogRaw = 0, cogRaw = null;
   if (lastFix){
     const dt = Math.max(0.5, (t - lastFix.t)/1000);
     const d = haversine(lastFix.lat, lastFix.lon, lat, lon);
-    sogRaw = d/dt;
+    const sogFromDiff = d/dt;
+    // Blend in Doppler-based speed when available: it's typically more accurate than
+    // position-differencing at low speed, where a 3-5m accuracy circle over 1s alone
+    // looks like several knots of noise.
+    sogRaw = (Number.isFinite(speed) && speed >= 0) ? (sogFromDiff + speed) / 2 : sogFromDiff;
     cogRaw = bearing(lastFix.lat, lastFix.lon, lat, lon);
   } else {
-    sogRaw = Number.isFinite(speed) ? speed : 0;
+    sogRaw = (Number.isFinite(speed) && speed >= 0) ? speed : 0;
     cogRaw = Number.isFinite(heading) ? heading : null;
   }
 
@@ -249,8 +268,22 @@ function updateFromPosition(p){
     sog = medianSog;
   }
 
-  // Sliding window median for COG
-  cog = cogRaw;
+  // Sliding window circular mean for COG. Below MIN_COG_SPEED the bearing between two
+  // fixes is dominated by GPS jitter rather than real heading, so we drop the buffer and
+  // keep showing the last trustworthy COG instead of feeding it noise.
+  if (cogRaw != null && sog >= MIN_COG_SPEED) {
+    const rad = toRad(cogRaw);
+    cogBuf.push({ sin: Math.sin(rad), cos: Math.cos(rad) });
+    if (cogBuf.length > COG_WINDOW) cogBuf.shift();
+    const sumSin = cogBuf.reduce((s,v)=>s+v.sin, 0);
+    const sumCos = cogBuf.reduce((s,v)=>s+v.cos, 0);
+    const meanCog = (toDeg(Math.atan2(sumSin, sumCos)) + 360) % 360;
+    if (!Number.isFinite(cog) || Math.abs(smallestAngleDiff(meanCog, cog)) > MIN_COG_CHANGE) {
+      cog = meanCog;
+    }
+  } else {
+    cogBuf = [];
+  }
 
   lastFix = { lat, lon, t };
   meMarker.setLatLng([lat, lon]);
@@ -270,28 +303,54 @@ function computeHeadingTrue(){
   if (headingMag==null){ headingTrue = null; return; }
   // wrap + deklinasjon
   const ht = (headingMag + decl + 360) % 360;
-  // Sliding window median for heading
-  headingBuf.push(ht);
+  // Sliding window circular mean for heading. A plain numeric median breaks near
+  // north (e.g. samples 350°, 355°, 2°, 5° sort to a bogus median around 350-355°),
+  // so we average unit vectors and recover the angle with atan2 instead.
+  const rad = toRad(ht);
+  headingBuf.push({ sin: Math.sin(rad), cos: Math.cos(rad) });
   if (headingBuf.length > HEADING_WINDOW) headingBuf.shift();
-  const sortedHeading = [...headingBuf].sort((a,b)=>a-b);
-  const medianHeading = sortedHeading[Math.floor(sortedHeading.length/2)];
+  const sumSin = headingBuf.reduce((s,v)=>s+v.sin, 0);
+  const sumCos = headingBuf.reduce((s,v)=>s+v.cos, 0);
+  const meanHeading = (toDeg(Math.atan2(sumSin, sumCos)) + 360) % 360;
   // Only update if change exceeds threshold
-  if (!Number.isFinite(headingTrue) || Math.abs(smallestAngleDiff(medianHeading, headingTrue)) > MIN_HEADING_CHANGE) {
-    headingTrue = medianHeading;
+  if (!Number.isFinite(headingTrue) || Math.abs(smallestAngleDiff(meanHeading, headingTrue)) > MIN_HEADING_CHANGE) {
+    headingTrue = meanHeading;
   }
 }
 
+// Accumulates unit vectors from every raw orientation event between throttled updates,
+// so smoothing is a circular mean of everything received in the window instead of
+// just whichever sample happened to land last (which was throwing away signal).
+let headingAccum = { sinSum: 0, cosSum: 0, count: 0 };
+
 function onOrientation(e){
-  // Mange Android-enheter: alpha=0 ved øst, øker mot sør; dette gir heading ~ (360 - alpha)
-  let a = e.alpha;
-  if (a==null) return;
-  
+  let raw = null;
+  if (typeof e.webkitCompassHeading === 'number' && Number.isFinite(e.webkitCompassHeading)) {
+    // iOS Safari: already magnetic-north-referenced, clockwise — 'alpha' is not
+    // compass-referenced on iOS and would silently give a wrong heading if used here.
+    raw = e.webkitCompassHeading;
+  } else if (e.alpha != null && (e.absolute === true || e.type === 'deviceorientationabsolute')) {
+    // Mange Android-enheter: alpha=0 ved øst, øker mot sør; dette gir heading ~ (360 - alpha)
+    // Only trust this when the event is flagged absolute (world/magnetic-referenced) —
+    // a plain relative 'deviceorientation' alpha drifts and isn't a compass heading.
+    raw = (360 - e.alpha) % 360;
+  }
+  if (raw == null) return;
+
+  const rad = toRad(raw);
+  headingAccum.sinSum += Math.sin(rad);
+  headingAccum.cosSum += Math.cos(rad);
+  headingAccum.count++;
+
   const t = Date.now();
-  // Throttle orientation updates to reduce jitter
+  // Throttle *emitted* updates to reduce render/log churn, but keep averaging every
+  // sample received in between rather than dropping all but the last one.
   if (t - lastOrientationUpdateTime < UPDATE_INTERVAL) return;
   lastOrientationUpdateTime = t;
-  
-  headingMag = (360 - a) % 360;
+
+  headingMag = (toDeg(Math.atan2(headingAccum.sinSum, headingAccum.cosSum)) + 360) % 360;
+  headingAccum = { sinSum: 0, cosSum: 0, count: 0 };
+
   // Raw log before correction
   logRaw('compass_raw', {headingMag, t});
   computeHeadingTrue();
