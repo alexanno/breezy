@@ -118,7 +118,7 @@
         <div class="map-metric"><div class="lbl">SOG</div><div class="val" id="mapSog">— kn</div></div>
         <div class="map-metric"><div class="lbl">Heading</div><div class="val" id="mapHeading">—°</div></div>
         <div class="map-controls">
-          <button id="btnFollow">📍 Følg</button>
+          <button id="btnFollow" title="Følg posisjon" aria-label="Følg posisjon">📍</button>
           <button id="btnSjokart">🌊 Sjøkart</button>
           <button id="btnWake">🔆 Skjerm på</button>
         </div>
@@ -227,8 +227,8 @@ function exportRawLog() {
 // ======== Map (Leaflet) ========
 const map = L.map('map', { zoomControl: true });
 //const tileurl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-//const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png'
-const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png'
+const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png'
+//const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png'
 const tile = L.tileLayer(tileurl, { maxZoom: 19, attribution: '&copy; Kartverket' });
 // Sjøkart raster (nautical chart) as a toggleable overlay on top of the topograatone background
 const seaTileUrl = 'https://cache.kartverket.no/v1/wmts/1.0.0/sjokartraster/default/webmercator/{z}/{y}/{x}.png';
@@ -608,7 +608,10 @@ tabBtnMap.addEventListener('click', ()=>showTab('map'));
 function setFollowing(v){
   following = v;
   el('btnFollow').classList.toggle('active', following);
-  if (following && lastFix) map.setView([lastFix.lat, lastFix.lon], map.getZoom(), { animate: true });
+  if (following && lastFix) {
+    const zoom = Math.min(map.getMaxZoom(), map.getZoom() + 2);
+    map.setView([lastFix.lat, lastFix.lon], zoom, { animate: true });
+  }
 }
 el('btnFollow').addEventListener('click', ()=>setFollowing(!following));
 
