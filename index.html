@@ -16,15 +16,19 @@
   <style>
     :root { --bg:#0b1220; --fg:#e8f0ff; --muted:#9db0d1; --accent:#39d; --ok:#14b8a6; --warn:#f59e0b; --err:#ef4444; }
     html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font: 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; }
-    #app { display:grid; grid-template-rows: auto 1fr auto; height:100%; }
+    #app { display:grid; grid-template-rows: auto auto 1fr auto; height:100%; }
     header { display:flex; gap:.75rem; align-items:center; padding:.75rem 1rem; border-bottom:1px solid #1d2942; position:sticky; top:0; background:#0c1528cc; backdrop-filter: blur(6px); z-index:10; }
     header h1 { font-size:1.05rem; margin:0; font-weight:600; }
     header .spacer { flex:1; }
     header button { background:var(--accent); border:none; color:white; padding:.6rem .9rem; border-radius:.7rem; font-weight:600; }
     header button.secondary { background:#1f2b46; color:var(--fg); border:1px solid #2b3b62; }
-    main { display:grid; grid-template-columns: 360px 1fr; gap:.75rem; padding:.75rem; }
-    @media (max-width: 1100px) { main { grid-template-columns: 1fr; grid-auto-rows: auto 1fr; } }
+    .tabs { display:flex; gap:.5rem; padding:.6rem 1rem 0; }
+    .tabs button { flex:1; background:#1f2b46; border:1px solid #2b3b62; color:var(--fg); padding:.55rem; border-radius:.7rem; font-weight:600; }
+    .tabs button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    main { display:grid; grid-template-columns: 1fr; gap:.75rem; padding:.75rem; min-height:0; }
+    .tabpanel.hidden { display:none; }
     .card { background:#0f1b33; border:1px solid #1d2e57; border-radius:14px; padding:12px; }
+    #panelOverview { max-width:720px; margin:0 auto; width:100%; }
     .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; }
     .metric { background:#0f213f; border:1px solid #1d2e57; border-radius:12px; padding:10px; }
     .metric h3 { margin:.1rem 0 .35rem; font-size:.85rem; color:var(--muted); font-weight:600; }
@@ -35,6 +39,16 @@
     input[type="text"], input[type="number"] { width:100%; padding:.6rem .7rem; border-radius:.6rem; border:1px solid #2b3b62; background:#0e1b34; color:var(--fg); }
     .hint { color:var(--muted); font-size:.8rem; }
     #map { width:100%; height:100%; min-height: 420px; border:1px solid #1d2e57; border-radius:14px; overflow:hidden; }
+    #panelMap { position:relative; display:flex; min-height:0; }
+    #panelMap #map { min-height:0; border-radius:14px; }
+    .map-overlay { position:absolute; top:12px; left:12px; right:12px; z-index:1000; display:flex; gap:.5rem; align-items:stretch; flex-wrap:wrap; pointer-events:none; }
+    .map-overlay > * { pointer-events:auto; }
+    .map-metric { background:#0c1528e6; backdrop-filter: blur(6px); border:1px solid #1d2e57; border-radius:12px; padding:.4rem .8rem; text-align:center; min-width:84px; }
+    .map-metric .lbl { font-size:.65rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+    .map-metric .val { font-size:1.3rem; font-variant-tabular-nums: tabular-nums; font-weight:700; }
+    .map-controls { display:flex; gap:.5rem; margin-left:auto; flex-wrap:wrap; }
+    .map-controls button { background:#0c1528e6; backdrop-filter: blur(6px); border:1px solid #1d2e57; color:var(--fg); padding:.5rem .7rem; border-radius:12px; font-weight:600; white-space:nowrap; }
+    .map-controls button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
     footer { padding:.5rem .75rem; border-top:1px solid #1d2942; color:var(--muted); display:flex; justify-content:space-between; gap:.5rem; }
     a.btn, button.btn { text-decoration:none; display:inline-flex; align-items:center; gap:.4rem; background:#10305a; color:#e6f2ff; border:1px solid #224773; padding:.55rem .8rem; border-radius:.6rem; font-weight:600; }
     .ok { color: var(--ok); }
@@ -57,8 +71,13 @@
       <!--<button id="btnLog" class="secondary">Last ned logg</button>-->
     </header>
 
+  <nav class="tabs" role="tablist">
+    <button id="tabBtnOverview" class="active" role="tab" aria-selected="true">Oversikt</button>
+    <button id="tabBtnMap" role="tab" aria-selected="false">Kart</button>
+  </nav>
+
   <main>
-    <section class="card" id="left">
+    <section class="card tabpanel" id="panelOverview">
       <div class="grid">
         <div class="metric"><h3>Heading (sann)</h3><div class="val" id="headingTrue">—°</div></div>
         <div class="metric"><h3>Δ heading</h3><div class="val" id="deltaHeading">—°</div></div>
@@ -72,7 +91,7 @@
         <div class="row">
           <div>
             <label>Mål (lat, lon)</label>
-            <input id="wpLat" type="number" step="0.000001" placeholder="Lat"> 
+            <input id="wpLat" type="number" step="0.000001" placeholder="Lat">
           </div>
           <div>
             <label>&nbsp;</label>
@@ -94,7 +113,16 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card tabpanel hidden" id="panelMap">
+      <div class="map-overlay">
+        <div class="map-metric"><div class="lbl">SOG</div><div class="val" id="mapSog">— kn</div></div>
+        <div class="map-metric"><div class="lbl">Heading</div><div class="val" id="mapHeading">—°</div></div>
+        <div class="map-controls">
+          <button id="btnFollow">📍 Følg</button>
+          <button id="btnSjokart">🌊 Sjøkart</button>
+          <button id="btnWake">🔆 Skjerm på</button>
+        </div>
+      </div>
       <div id="map"></div>
     </section>
   </main>
@@ -157,6 +185,8 @@ let lastHeading = null; // for delta
 let decl = 0; // deg (oppdatert per posisjon)
 let wakeLock = null;
 let target = null; // {lat, lon}
+let following = false; // follow GPS position on the map
+let sjokartOn = false; // sjøkart raster overlay toggle
 
 // Sliding window buffers
 const SOG_WINDOW = 5;
@@ -200,6 +230,9 @@ const map = L.map('map', { zoomControl: true });
 //const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png'
 const tileurl = 'https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png'
 const tile = L.tileLayer(tileurl, { maxZoom: 19, attribution: '&copy; Kartverket' });
+// Sjøkart raster (nautical chart) as a toggleable overlay on top of the topograatone background
+const seaTileUrl = 'https://cache.kartverket.no/v1/wmts/1.0.0/sjokartraster/default/webmercator/{z}/{y}/{x}.png';
+const seaTile = L.tileLayer(seaTileUrl, { maxZoom: 19, opacity: 0.85, attribution: '&copy; Kartverket (Sjøkart raster)' });
 const trackLine = L.polyline([], { weight: 4, opacity: .9 }).addTo(map);
 let meMarker = L.circleMarker([0,0], {radius: 6, opacity: 1, fillOpacity: 0.9}).addTo(map);
 let wpMarker = null;
@@ -210,6 +243,9 @@ map.setView([58.1467, 7.9956], 12); // Kristiansand-ish default
 map.on('click', (e)=>{
   setWaypoint(e.latlng.lat, e.latlng.lng);
 });
+
+// Turning off follow on manual drag only (not on programmatic setView/panTo calls)
+map.on('dragstart', ()=>{ if (following) setFollowing(false); });
 
 function setWaypoint(lat, lon){
   target = {lat, lon};
@@ -292,6 +328,7 @@ function updateFromPosition(p){
     trackLine.addLatLng([lat,lon]);
   }
   if (trackPts.length === 1) map.setView([lat,lon], 15);
+  if (following) map.setView([lat, lon], map.getZoom(), { animate: true });
   computeHeadingTrue();
   render();
 
@@ -365,17 +402,10 @@ async function startSensors(){
   started = true;
 
   // Wake Lock (skjerm alltid på)
-  try {
-    if ('wakeLock' in navigator){
-      wakeLock = await navigator.wakeLock.request('screen');
-      el('permWake').textContent = 'wake lock ✓'; el('permWake').className = 'ok';
-      document.addEventListener('visibilitychange', async ()=>{
-        if (document.visibilityState==='visible' && !wakeLock) {
-          try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
-        }
-      });
-    }
-  } catch(e){ el('permWake').textContent = 'wake lock ⚠'; }
+  await requestWakeLock();
+  document.addEventListener('visibilitychange', async ()=>{
+    if (document.visibilityState==='visible' && !wakeLock) await requestWakeLock();
+  });
 
   // Orientation permission (iOS-lignende API; på Android/Chrome trengs sjelden, men kjør anyway)
   try {
@@ -422,6 +452,8 @@ function render(){
   el('deltaHeading').textContent = Number.isFinite(dH) ? `${fmt(dH,0)}°` : '—°';
   el('sog').textContent = `${fmt(sog*1.94384,2)} kn`;
   el('cog').textContent = Number.isFinite(cog) ? `${fmt(cog,0)}°` : '—°';
+  el('mapSog').textContent = `${fmt(sog*1.94384,1)} kn`;
+  el('mapHeading').textContent = Number.isFinite(headingTrue) ? `${fmt(headingTrue,0)}°` : '—°';
 
   if (lastFix && target){
     const brg = bearing(lastFix.lat, lastFix.lon, target.lat, target.lon);
@@ -551,6 +583,57 @@ el('btnLog').addEventListener('click', ()=>{
 el('btnSetWp').addEventListener('click', ()=>{
   const la = parseFloat(el('wpLat').value), lo = parseFloat(el('wpLon').value);
   if (Number.isFinite(la) && Number.isFinite(lo)) setWaypoint(la, lo);
+});
+
+// ======== Tabs (Oversikt / Kart) ========
+const tabBtnOverview = el('tabBtnOverview');
+const tabBtnMap = el('tabBtnMap');
+const panelOverview = el('panelOverview');
+const panelMap = el('panelMap');
+
+function showTab(tab){
+  const isMap = tab === 'map';
+  panelOverview.classList.toggle('hidden', isMap);
+  panelMap.classList.toggle('hidden', !isMap);
+  tabBtnOverview.classList.toggle('active', !isMap);
+  tabBtnOverview.setAttribute('aria-selected', String(!isMap));
+  tabBtnMap.classList.toggle('active', isMap);
+  tabBtnMap.setAttribute('aria-selected', String(isMap));
+  if (isMap) setTimeout(()=>map.invalidateSize(), 0);
+}
+tabBtnOverview.addEventListener('click', ()=>showTab('overview'));
+tabBtnMap.addEventListener('click', ()=>showTab('map'));
+
+// ======== Map controls: følg GPS, sjøkart raster, skjerm alltid på ========
+function setFollowing(v){
+  following = v;
+  el('btnFollow').classList.toggle('active', following);
+  if (following && lastFix) map.setView([lastFix.lat, lastFix.lon], map.getZoom(), { animate: true });
+}
+el('btnFollow').addEventListener('click', ()=>setFollowing(!following));
+
+el('btnSjokart').addEventListener('click', ()=>{
+  sjokartOn = !sjokartOn;
+  if (sjokartOn) seaTile.addTo(map); else map.removeLayer(seaTile);
+  el('btnSjokart').classList.toggle('active', sjokartOn);
+});
+
+async function requestWakeLock(){
+  try {
+    if ('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', ()=>{ wakeLock = null; updateWakeBtn(); });
+      el('permWake').textContent = 'wake lock ✓'; el('permWake').className = 'ok';
+    }
+  } catch(e){ el('permWake').textContent = 'wake lock ⚠'; }
+  updateWakeBtn();
+}
+function updateWakeBtn(){
+  el('btnWake').classList.toggle('active', !!wakeLock);
+}
+el('btnWake').addEventListener('click', async ()=>{
+  if (wakeLock) { await wakeLock.release(); wakeLock = null; updateWakeBtn(); }
+  else await requestWakeLock();
 });
 
 // Autostart geolocation watch for a quick center if permission granted already
