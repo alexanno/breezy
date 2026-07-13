@@ -25,7 +25,7 @@
     .tabs { display:flex; gap:.5rem; padding:.6rem 1rem 0; }
     .tabs button { flex:1; background:#1f2b46; border:1px solid #2b3b62; color:var(--fg); padding:.55rem; border-radius:.7rem; font-weight:600; }
     .tabs button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-    main { display:grid; grid-template-columns: 1fr; gap:.75rem; padding:.75rem; min-height:0; }
+    main { display:grid; grid-template-columns: 1fr; gap:.75rem; padding:.75rem; min-height:0; overflow-y:auto; }
     .tabpanel.hidden { display:none; }
     .card { background:#0f1b33; border:1px solid #1d2e57; border-radius:14px; padding:12px; }
     #panelOverview { max-width:720px; margin:0 auto; width:100%; }
@@ -46,11 +46,11 @@
     .map-metric { background:#0c1528e6; backdrop-filter: blur(6px); border:1px solid #1d2e57; border-radius:10px; padding:.3rem .55rem; text-align:right; min-width:0; }
     .map-metric .lbl { font-size:.6rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
     .map-metric .val { font-size:.95rem; font-variant-tabular-nums: tabular-nums; font-weight:700; }
-    .map-controls { position:absolute; left:10px; right:10px; bottom:10px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:1000; display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap; pointer-events:none; }
+    .map-controls { position:absolute; left:10px; right:10px; bottom:34px; bottom:calc(34px + env(safe-area-inset-bottom)); z-index:1000; display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap; pointer-events:none; }
     .map-controls > * { pointer-events:auto; }
     .map-controls button { background:#0c1528e6; backdrop-filter: blur(6px); border:1px solid #1d2e57; color:var(--fg); padding:.5rem .7rem; border-radius:12px; font-weight:600; white-space:nowrap; }
     .map-controls button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-    footer { padding:.5rem .75rem; border-top:1px solid #1d2942; color:var(--muted); display:flex; justify-content:space-between; gap:.5rem; }
+    footer { padding:.5rem .75rem calc(.5rem + env(safe-area-inset-bottom)); border-top:1px solid #1d2942; color:var(--muted); display:flex; flex-wrap:wrap; justify-content:space-between; gap:.4rem .75rem; }
     a.btn, button.btn { text-decoration:none; display:inline-flex; align-items:center; gap:.4rem; background:#10305a; color:#e6f2ff; border:1px solid #224773; padding:.55rem .8rem; border-radius:.6rem; font-weight:600; }
     .ok { color: var(--ok); }
     .warn { color: var(--warn); }
